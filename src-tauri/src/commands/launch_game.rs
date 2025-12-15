@@ -50,18 +50,26 @@ pub async fn launch_game(username: String, version: String) {
     let natives_folder = "minecraft/natives";
     let version = get_version(version).await;
     let libraries = get_libraries(Path::new(library_folder));
+    let _separator = ":";
+    #[cfg(target_os = "windows")]
+    let _separator = ";";
+
     let classpath = format!(
         "{}/{}/{}.jar{}{}",
         version_folder,
         &version.id,
         &version.id,
-        ";",
-        libraries.join(";")
+        _separator,
+        libraries.join(_separator)
     );
 
     Command::new("java")
     .args(&[
+        #[cfg(target_os = "macos")]
+        "-XstartOnFirstThread",
+        #[cfg(target_os = "windows")]
         "-XX:HeapDumpPath=MojangTricksIntelDriversForPerformance_javaw.exe_minecraft.exe.heapdump", 
+        #[cfg(target_arch = "x86")]
         "-Xss1M",
         &format!("-Djava.library.path={}", natives_folder),
         &format!("-Djna.tmpdir={}", natives_folder),
@@ -73,7 +81,7 @@ pub async fn launch_game(username: String, version: String) {
         &classpath,
         &version.main_class,
         "--username",
-        "player", 
+        &username, 
         "--version",
         &version.id,
         "--gameDir",

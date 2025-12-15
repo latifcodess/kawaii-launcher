@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use crate::commands::version::{Version, VersionManifest};
+use crate::commands::version::Version;
 use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

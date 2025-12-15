@@ -3,7 +3,7 @@ use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
-use crate::commands::asset::{get_assets, Asset};
+use crate::commands::asset::get_assets;
 
 async fn download_assets(version: Version) -> tauri::async_runtime::JoinHandle<()> {
     tauri::async_runtime::spawn(async move {
@@ -15,10 +15,9 @@ async fn download_assets(version: Version) -> tauri::async_runtime::JoinHandle<(
                 fs::create_dir_all(parent).expect("Failed to create parent directory");
             }
         }
-        if let path = assets_objects.as_path() {
-            if !path.exists() {
-                fs::create_dir_all(path).expect("Failed to create parent directory");
-            }
+        let path = assets_objects.as_path();
+        if !path.exists() {
+            fs::create_dir_all(path).expect("Failed to create parent directory");
         }
         if !assets_index.as_path().exists() {
             println!("Downloading {}", version.asset_index.url);
