@@ -28,14 +28,14 @@ pub struct Versions {
     pub compliance_level: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Version {
     pub arguments: Option<Value>,
-    pub asset_index: Value,
+    pub asset_index: AssetIndex,
     pub assets: String,
     pub compliance_level: u32,
-    pub downloads: Value,
+    pub downloads: HashMap<String, VersionDownload>,
     pub id: String,
     pub java_version: Value,
     pub libraries: Vec<Library>,
@@ -47,13 +47,33 @@ pub struct Version {
     pub r#type: String
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Library {
-    pub downloads: Downloads,
-    pub name: Option<String>,
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetIndex {
+    pub id: String,
+    pub sha1: String,
+    pub size: u32,
+    pub total_size: u32,
+    pub url: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct VersionDownload {
+    pub sha1: String,
+    pub size: u32,
+    pub url: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Library {
+    pub downloads: Downloads,
+    pub extract: Option<Value>,
+    pub name: Option<String>,
+    pub natives: Option<Value>,
+    pub rules: Option<Vec<Value>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Downloads {
     pub artifact: Option<Artifact>,
     pub classifiers: Option<HashMap<String, Artifact>>
@@ -70,8 +90,7 @@ pub struct Classifiers {
     pub natives_window_32: Option<Artifact>,
 } */
 
-#[derive(Serialize, Deserialize, Debug)]
-#[derive(Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Artifact {
     pub path: String,
     pub sha1: String,
@@ -82,12 +101,7 @@ pub struct Artifact {
 #[tauri::command]
 pub async fn get_version(version_id: String) -> Version {
     // get the deserialized data form piston-meta
-    let version_manifest = reqwest::get("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json")
-        .await
-        .expect("Failed to get version manifest")
-        .json::<VersionManifest>()
-        .await
-        .expect("Failed to parse version manifest");
+    let version_manifest = get_versions().await;
 
     // find the chosen version
     let selected_version = version_manifest.versions.into_iter().find(|v| v.id == version_id).expect("Failed to find version in manifest");
