@@ -1,5 +1,6 @@
 use reqwest::Client;
 use futures::{stream, StreamExt};
+use tokio::io::AsyncWriteExt;
 use crate::commands::version::{get_versions, Version};
 use std::fs;
 use std::fs::File;
@@ -49,37 +50,51 @@ async fn download_assets(version: Version) -> tauri::async_runtime::JoinHandle<(
         .map(|asset| {
             let client = client.clone();
             let hash = asset.hash.clone();
-            let value = assets_objects.clone();
+            let assets_objects = assets_objects.clone();
             async move {
                 let two = hash.split_at(2).0;
-                let path = value.join(format!("{}/{}", two, asset.hash));
-                if let Some(parent) = path.parent() {
-                    if !parent.exists() {
-                        fs::create_dir_all(parent).expect("Failed to create parent directory");
-                    }
-                }   
+                let path = assets_objects.join(format!("{}/{}", two, hash));
+                if path.exists() {
+                    return None;
+                }
                 let url = format!("https://resources.download.minecraft.net/{}/{}", two, hash);
-                let resp = client.get(&url).send().await.unwrap();
-                resp.bytes().await
+                let resp = client.get(&url).send().await;
+                Some((hash, resp))
             }
         })
-        .buffer_unordered(50);
-        bodies
-        .for_each(|b| async {
-            match b {
-                Ok(b) => {
-                        if b.is_empty() {
-                            println!("Skipped existing file");
-                        } else {
-                            println!("Downloaded {} bytes", b.len());
-                            let mut file = File::create(&assets_index).expect("Failed to create file");
-                            file.write_all(&b).expect("Failed to write to file")
+        .buffer_unordered(100);
+        bodies.for_each(|item| {
+            let assets_objects = assets_objects.clone();
+            async move {
+                if let Some((hash, resp)) = item {
+                    match resp {
+                        Ok(response) => {
+                            match response.bytes().await {
+                                Ok(b) => {
+                                    let two = hash.split_at(2).0;
+                                    let path = assets_objects.join(format!("{}/{}", two, hash));
+                                    let path_str =  path.as_path().to_str().expect("Failed to convert path to string");
+
+                                    if let Some(parent) = path.parent() {
+                                        if !parent.exists() {
+                                            let _ = tokio::fs::create_dir_all(parent).await;
+                                        }
+                                    }
+
+                                    if !path.as_path().exists() {
+                                        println!("Writing to {}", path_str);
+                                        let mut file = tokio::fs::File::create(&path).await.expect("Failed to create file");
+                                        file.write_all(&b).await.expect("Failed to write to file");
+                                    }
+                                }
+                                Err(e) => eprintln!("Failed to get bytes for {}: {}", hash, e),
+                            }
                         }
-                    },
-                Err(e) => eprintln!("Got an error: {}", e),
+                        Err(e) => eprintln!("Network error for {}: {}", hash, e),
+                    }
+                }
             }
-        })
-        .await;
+        }).await;
 
         /*for asset in asset_list.objects.values() {
             let two = asset.hash.split_at(2).0;
