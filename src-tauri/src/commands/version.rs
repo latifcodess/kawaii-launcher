@@ -1,8 +1,9 @@
-use std::collections::HashMap;
 // https://piston-meta.mojang.com/mc/game/version_manifest_v2.json
+use std::{collections::HashMap, path::Path};
 use reqwest;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tokio::fs;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct VersionManifest {
@@ -100,6 +101,16 @@ pub struct Artifact {
 
 #[tauri::command]
 pub async fn get_version(version_id: String) -> Version {
+
+    let path = Path::new("minecraft/versions");
+    let version_id = version_id.trim().to_string();
+    let path = path.join(format!("{}/{}.json", version_id, version_id));
+
+    if path.exists() {
+        let file = fs::read_to_string(&path).await.expect("Failed to open path");
+        let version = serde_json::from_str(&file).expect("Failed to deserialized"); 
+        return version;
+    }
     // get the deserialized data form piston-meta
     let version_manifest = get_versions().await;
 
@@ -110,7 +121,7 @@ pub async fn get_version(version_id: String) -> Version {
         .find(|v| v.id == version_id)
         .expect("Failed to find version in manifest");
 
-    // request and deserialized the version
+    // request and deserialized the versi   on
     let version = reqwest::get(selected_version.url)
         .await
         .expect("Failed to get version manifest")

@@ -63,7 +63,11 @@ pub async fn launch_game(username: String, version: String) {
         libraries.join(_separator)
     );
 
-    Command::new("java")
+    let _command = "java";
+    #[cfg(target_os = "windows")]
+    let _command = "javaw";
+
+    Command::new(_command)
     .args(&[
         #[cfg(target_os = "macos")]
         "-XstartOnFirstThread",

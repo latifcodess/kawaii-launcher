@@ -4,7 +4,7 @@ use tokio::io::AsyncWriteExt;
 use crate::commands::version::{get_versions, Version};
 use std::fs;
 use std::fs::File;
-use std::io::{Write, copy};
+use std::io::Write;
 use std::path::Path;
 use crate::commands::asset::get_assets;
 
