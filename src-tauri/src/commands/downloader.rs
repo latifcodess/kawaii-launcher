@@ -125,7 +125,7 @@ async fn download_assets(version: Version) -> tauri::async_runtime::JoinHandle<(
         }*/
     })
 }
-
+/*
 async fn download_library(version: Version) -> tauri::async_runtime::JoinHandle<()> {
     // new thread with a handle to wait on
     tauri::async_runtime::spawn(async move {
@@ -260,6 +260,60 @@ async fn download_library(version: Version) -> tauri::async_runtime::JoinHandle<
         }
     })
 }
+*/
+async fn download_library(version: Version) -> tauri::async_runtime::JoinHandle<()> {
+    tauri::async_runtime::spawn(async move {
+        let libraries = version.libraries;
+        let path = Path::new("minecraft/libraries");
+
+        let client = Client::new();
+
+        let bodies = stream::iter(libraries)
+        .map(|library| {
+            let client = client.clone();
+            let artifact = library.downloads.artifact.expect("Failed to get artifact").clone();
+            let path = path.join(artifact.path);
+            async move {
+                if path.exists() {
+                    return None;
+                }
+                let resp = client.get(&artifact.url).send().await;
+                Some((path, resp))
+            }
+        })
+        .buffer_unordered(20);
+        bodies.for_each(|item| {
+            async move {
+                if let Some((path, resp)) = item {
+                    match resp {
+                        Ok(response) => {
+                            match response.bytes().await {
+                                Ok(b) => {
+                                    let path_str =  path.as_path().to_str().expect("Failed to convert path to string");
+
+                                    if let Some(parent) = path.parent() {
+                                        if !parent.exists() {
+                                            let _ = tokio::fs::create_dir_all(parent).await;
+                                        }
+                                    }
+
+                                    if !path.as_path().exists() {
+                                        println!("Writing to {}", path_str);
+                                        let mut file = tokio::fs::File::create(&path).await.expect("Failed to create file");
+                                        file.write_all(&b).await.expect("Failed to write to file");
+                                    }
+                                }
+                                Err(e) => eprintln!("Failed to get bytes for: {}", e),
+                            }
+                        }
+                        Err(e) => eprintln!("Network error for: {}", e),
+                    }
+                }
+            }
+        }).await;
+    })
+}
+
 
 async fn download_version(version: Version) -> tauri::async_runtime::JoinHandle<()> {
     // new thread with a handle to wait on
